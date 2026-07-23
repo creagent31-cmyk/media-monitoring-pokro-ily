@@ -1,0 +1,180 @@
+from config import (
+    NEGATIVE_WORDS,
+    POSITIVE_WORDS,
+    PROJECTS
+)
+
+
+# =====================================================
+# KONTROLA RELEVANCE
+# =====================================================
+
+def is_relevant(article):
+    """
+    Vrátí True, pokud článek pravděpodobně souvisí
+    se sledovanými projekty.
+    """
+
+    text = (
+        article.get("title", "")
+        + " "
+        + article.get("source", "")
+    ).lower()
+
+
+    for project in PROJECTS:
+
+        if project.lower() in text:
+            return True
+
+
+    return False
+
+
+
+# =====================================================
+# SENTIMENT
+# =====================================================
+
+def analyze_sentiment(article):
+    """
+    Jednoduchá analýza nálady článku
+    """
+
+    text = (
+        article.get("title", "")
+    ).lower()
+
+
+    positive = 0
+    negative = 0
+
+
+    for word in POSITIVE_WORDS:
+
+        if word.lower() in text:
+            positive += 1
+
+
+    for word in NEGATIVE_WORDS:
+
+        if word.lower() in text:
+            negative += 1
+
+
+
+    if negative > positive:
+
+        return "🔴 Negativní"
+
+
+    elif positive > negative:
+
+        return "🟢 Pozitivní"
+
+
+    else:
+
+        return "🟡 Neutrální"
+
+
+
+# =====================================================
+# DŮLEŽITOST
+# =====================================================
+
+def calculate_importance(article):
+
+    """
+    Určuje prioritu 1-5
+    """
+
+    score = 1
+
+
+    title = (
+        article.get("title", "")
+        .lower()
+    )
+
+
+    # Pokud je přímo v titulku Cresco
+    if "cresco" in title:
+
+        score += 2
+
+
+    # Negativní témata mají vyšší prioritu
+    for word in NEGATIVE_WORDS:
+
+        if word in title:
+
+            score += 2
+            break
+
+
+
+    # Pozitivní významná témata
+
+    for word in POSITIVE_WORDS:
+
+        if word in title:
+
+            score += 1
+            break
+
+
+
+    if score > 5:
+
+        score = 5
+
+
+    return score
+
+
+
+# =====================================================
+# HLAVNÍ FILTR
+# =====================================================
+
+def process_articles(articles):
+
+    """
+    Vstup:
+    seznam článků
+
+    Výstup:
+    pouze relevantní články
+    s hodnocením
+    """
+
+    result = []
+
+
+    for article in articles:
+
+
+        if not is_relevant(article):
+
+            continue
+
+
+
+        article["sentiment"] = (
+            analyze_sentiment(article)
+        )
+
+
+        article["importance"] = (
+            calculate_importance(article)
+        )
+
+
+        result.append(
+            article
+        )
+
+
+
+    return result
