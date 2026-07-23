@@ -1,4 +1,5 @@
 from crawler import get_news
+from filter import process_articles
 
 from database import (
     init,
@@ -6,62 +7,99 @@ from database import (
     save
 )
 
-from ai import analyze
-
 from report import create
-
-from email_sender import send
+from email_sender import send_email
 
 
 
 def main():
 
+    print("🚀 Spouštím Cresco Media Monitor")
 
+
+    # vytvoření databáze
     init()
 
 
-    new=[]
+    print("🔎 Stahuji články...")
 
 
-    for article in get_news():
+    articles = get_news()
+
+
+    print(
+        f"Nalezeno článků: {len(articles)}"
+    )
+
+
+    print("🧠 Filtruji relevantní články...")
+
+
+    filtered = process_articles(
+        articles
+    )
+
+
+    print(
+        f"Relevantních článků: {len(filtered)}"
+    )
+
+
+    new_articles = []
+
+
+    for article in filtered:
 
 
         if exists(
             article["link"]
         ):
+
             continue
 
 
-        result=analyze(
-            article["title"]
+        save(
+            article
         )
 
 
-        article["summary"]=result
-
-
-        article["sentiment"]="AI"
-
-        article["relevance"]=5
-
-
-        save(article)
-
-
-        new.append(article)
-
-
-
-    if new:
-
-        html=create(
-            new
+        new_articles.append(
+            article
         )
 
-        send(html)
+
+
+    if not new_articles:
+
+        print(
+            "Žádné nové články"
+        )
+
+        return
 
 
 
-if __name__=="__main__":
+    print(
+        "📧 Vytvářím report..."
+    )
+
+
+    html = create(
+        new_articles
+    )
+
+
+    send_email(
+        html
+    )
+
+
+    print(
+        "✅ Hotovo"
+    )
+
+
+
+if __name__ == "__main__":
 
     main()
