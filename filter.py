@@ -4,6 +4,15 @@ from config import (
     PROJECTS
 )
 
+def _clean_str(val) -> str:
+    """Pomocná funkce: Převede hodnotu na řetězec bez ohledu na to, zda jde o dict nebo None."""
+    if not val:
+        return ""
+    if isinstance(val, dict):
+        # Pokud je to slovník z feedparseru (např. u source nebo summary), zkusíme získat text/title
+        return str(val.get("title") or val.get("value") or "")
+    return str(val)
+
 
 # =====================================================
 # KONTROLA RELEVANCE
@@ -14,22 +23,16 @@ def is_relevant(article):
     Vrátí True, pokud článek pravděpodobně souvisí
     se sledovanými projekty.
     """
+    title = _clean_str(article.get("title", ""))
+    source = _clean_str(article.get("source", ""))
 
-    text = (
-        article.get("title", "")
-        + " "
-        + article.get("source", "")
-    ).lower()
-
+    text = f"{title} {source}".lower()
 
     for project in PROJECTS:
-
         if project.lower() in text:
             return True
 
-
     return False
-
 
 
 # =====================================================
@@ -40,43 +43,25 @@ def analyze_sentiment(article):
     """
     Jednoduchá analýza nálady článku
     """
-
-    text = (
-        article.get("title", "")
-    ).lower()
-
+    text = _clean_str(article.get("title", "")).lower()
 
     positive = 0
     negative = 0
 
-
     for word in POSITIVE_WORDS:
-
         if word.lower() in text:
             positive += 1
 
-
     for word in NEGATIVE_WORDS:
-
         if word.lower() in text:
             negative += 1
 
-
-
     if negative > positive:
-
         return "🔴 Negativní"
-
-
     elif positive > negative:
-
         return "🟢 Pozitivní"
-
-
     else:
-
         return "🟡 Neutrální"
-
 
 
 # =====================================================
@@ -84,54 +69,32 @@ def analyze_sentiment(article):
 # =====================================================
 
 def calculate_importance(article):
-
     """
     Určuje prioritu 1-5
     """
-
     score = 1
-
-
-    title = (
-        article.get("title", "")
-        .lower()
-    )
-
+    title = _clean_str(article.get("title", "")).lower()
 
     # Pokud je přímo v titulku Cresco
     if "cresco" in title:
-
         score += 2
-
 
     # Negativní témata mají vyšší prioritu
     for word in NEGATIVE_WORDS:
-
-        if word in title:
-
+        if word.lower() in title:
             score += 2
             break
 
-
-
     # Pozitivní významná témata
-
     for word in POSITIVE_WORDS:
-
-        if word in title:
-
+        if word.lower() in title:
             score += 1
             break
 
-
-
     if score > 5:
-
         score = 5
 
-
     return score
-
 
 
 # =====================================================
@@ -139,42 +102,19 @@ def calculate_importance(article):
 # =====================================================
 
 def process_articles(articles):
-
     """
-    Vstup:
-    seznam článků
-
-    Výstup:
-    pouze relevantní články
-    s hodnocením
+    Vstup: seznam článků
+    Výstup: pouze relevantní články s hodnocením
     """
-
     result = []
 
-
     for article in articles:
-
-
         if not is_relevant(article):
-
             continue
 
+        article["sentiment"] = analyze_sentiment(article)
+        article["importance"] = calculate_importance(article)
 
-
-        article["sentiment"] = (
-            analyze_sentiment(article)
-        )
-
-
-        article["importance"] = (
-            calculate_importance(article)
-        )
-
-
-        result.append(
-            article
-        )
-
-
+        result.append(article)
 
     return result
