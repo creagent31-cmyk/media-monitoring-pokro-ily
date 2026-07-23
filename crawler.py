@@ -33,10 +33,10 @@ def get_news():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
 
-    # 1. GOOGLE NEWS (S hloubkovým hledáním 7 dní zpětně)
+    # 1. GOOGLE NEWS (Prohledávání 14 dní zpětně)
     for project in PROJECTS:
-        # Přidání 'when:7d' vyhledá články z celého uplynulého týdne
-        query_text = f"{project} when:7d"
+        # Přidání 'when:14d' vyhledá články z posledních 14 dnů
+        query_text = f"{project} when:14d"
         q = urllib.parse.quote(query_text)
         url = f"https://news.google.com/rss/search?q={q}&hl=cs&ceid=CZ:cs"
 
@@ -64,7 +64,7 @@ def get_news():
         except Exception as e:
             print(f"Chyba u Google News ({project}): {e}")
 
-    # 2. PŘÍMÉ RSS FEEDY (s přečtením celého článku na webu)
+    # 2. PŘÍMÉ RSS FEEDY (S načtením celého textu z webu)
     for direct_feed in DIRECT_FEEDS:
         try:
             response = requests.get(direct_feed["url"], headers=headers, timeout=10)
