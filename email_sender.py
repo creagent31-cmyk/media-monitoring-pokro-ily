@@ -9,21 +9,21 @@ from config import (
 )
 
 
+def send_email(html):
 
-def send(html):
-
-
-    msg=MIMEText(
+    msg = MIMEText(
         html,
-        "html"
+        "html",
+        "utf-8"
     )
 
+    msg["Subject"] = (
+        "📰 Cresco Media Monitoring"
+    )
 
-    msg["Subject"]="📰 Cresco Media Monitoring"
+    msg["From"] = EMAIL_USER
 
-    msg["From"]=EMAIL_USER
-
-    msg["To"]=",".join(
+    msg["To"] = ", ".join(
         EMAIL_TO
     )
 
@@ -33,12 +33,10 @@ def send(html):
         465
     ) as server:
 
-
         server.login(
             EMAIL_USER,
             EMAIL_PASSWORD
         )
-
 
         server.sendmail(
             EMAIL_USER,
