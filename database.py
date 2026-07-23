@@ -40,7 +40,6 @@ def save(article):
     conn = sqlite3.connect(DB)
     c = conn.cursor()
 
-    # Pomocné vytažení textu z summary/description (pokud by šlo o slovník)
     raw_summary = article.get("summary") or article.get("description", "")
     if isinstance(raw_summary, dict):
         summary = str(raw_summary.get("value", ""))
@@ -56,7 +55,7 @@ def save(article):
         str(article.get("title", "")),
         summary,
         str(article.get("sentiment", "🟡 Neutrální")),
-        article.get("importance") or article.get("relevance", 1)  # Ošetřuje 'importance' i 'relevance'
+        article.get("importance") or article.get("relevance", 1)
     ))
 
     conn.commit()
