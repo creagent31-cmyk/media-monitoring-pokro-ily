@@ -5,26 +5,30 @@ from bs4 import BeautifulSoup
 
 from config import PROJECTS
 
+# Seznam přímých RSS feedů médií, které chceš hloubkově skenovat
 DIRECT_FEEDS = [
-    {"source_name": "CzechCrunch", "url": "https://cc.cz/feed/"}
+    {"source_name": "CzechCrunch", "url": "https://cc.cz/feed/"},
+    # Sem můžeš podle potřeby přidat další zdroje, např.:
+    # {"source_name": "Lupa", "url": "https://www.lupa.cz/rss/clanky/"},
+    # {"source_name": "Hospodářské noviny", "url": "https://hn.cz/rss/"}
 ]
 
 
-def _get_full_article_text(url):
-    """Stáhne HTML stránku článku a vytáhne z ní veškerý text."""
+def _get_full_article_text(url: str) -> str:
+    """ Stáhne HTML stránku odkazu a vybere z ní kompletní text obsahu. """
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        resp = requests.get(url, headers=headers, timeout=5)
+        resp = requests.get(url, headers=headers, timeout=6)
         if resp.status_code == 200:
             soup = BeautifulSoup(resp.text, "html.parser")
-            # Odstranění nežádoucích prvků (skripty, styly)
-            for script in soup(["script", "style", "nav", "footer"]):
-                script.decompose()
+            # Odstraníme balast (skripty, navigaci, patčky)
+            for element in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                element.decompose()
             return soup.get_text(separator=" ")
-    except Exception as e:
-        print(f"Chyba při stahování obsahu z {url}: {e}")
+    except Exception:
+        pass
     return ""
 
 
@@ -34,8 +38,11 @@ def get_news():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
 
-    # 1. GOOGLE NEWS
+    # -----------------------------------------------------
+    # 1. ZÍSKÁNÍ ZPRÁV Z GOOGLE NEWS (Plošný monitoring internetu)
+    # -----------------------------------------------------
     for project in PROJECTS:
+        # Hledáme klíčové slovo na celém Google News
         q = urllib.parse.quote(project)
         url = f"https://news.google.com/rss/search?q={q}&hl=cs&ceid=CZ:cs"
 
@@ -61,9 +68,11 @@ def get_news():
                     "date": item.get("published", "")
                 })
         except Exception as e:
-            print(f"Chyba u Google News ({project}): {e}")
+            print(f"Chyba při stahování Google News pro {project}: {e}")
 
-    # 2. PŘÍMÉ RSS FEEDY (např. CzechCrunch s přečtením celého článku)
+    # -----------------------------------------------------
+    # 2. HLUBOČNÍ SKENOVÁNÍ PŘÍMÝCH RSS FEEDŮ
+    # -----------------------------------------------------
     for direct_feed in DIRECT_FEEDS:
         try:
             response = requests.get(direct_feed["url"], headers=headers, timeout=10)
@@ -73,18 +82,18 @@ def get_news():
                 link = item.get("link", "")
                 summary_raw = item.get("summary") or item.get("description", "")
                 
-                # Prohledáme přímo plný text na webové stránce článku
+                # Prohledáme celý text článku na webové stránce
                 full_text = _get_full_article_text(link)
-                combined_summary = f"{summary_raw} {full_text}"
+                combined_content = f"{summary_raw} {full_text}"
 
                 articles.append({
                     "title": item.get("title", ""),
                     "link": link,
-                    "summary": combined_summary,
+                    "summary": combined_content,  # Obsahuje celý text článku!
                     "source": direct_feed["source_name"],
                     "date": item.get("published", "")
                 })
         except Exception as e:
-            print(f"Chyba u feedu {direct_feed['source_name']}: {e}")
+            print(f"Chyba při stahování feedu {direct_feed['source_name']}: {e}")
 
     return articles
