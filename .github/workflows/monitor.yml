@@ -1,14 +1,15 @@
-name: Media Monitor
+name: Cresco Media Monitor
 
 
 on:
 
+  workflow_dispatch:
+
   schedule:
 
-    - cron: "0 */6 * * *"
-
-
-  workflow_dispatch:
+    # každý den v 7:00 UTC
+    # (v ČR v zimě 8:00, v létě 9:00)
+    - cron: "0 7 * * *"
 
 
 
@@ -24,35 +25,39 @@ jobs:
     steps:
 
 
-    - uses: actions/checkout@v4
-
-
-    - uses: actions/setup-python@v5
-
-      with:
-
-        python-version: "3.12"
+      - name: Stažení projektu
+        uses: actions/checkout@v4
 
 
 
-    - run: |
+      - name: Nastavení Pythonu
+        uses: actions/setup-python@v5
 
-        pip install -r requirements.txt
+        with:
 
-
-
-    - run: |
-
-        python main.py
+          python-version: "3.12"
 
 
-      env:
 
-        OPENAI_API_KEY:
-          ${{ secrets.OPENAI_API_KEY }}
+      - name: Instalace knihoven
+        run: |
 
-        EMAIL_USER:
-          ${{ secrets.EMAIL_USER }}
+          pip install -r requirements.txt
 
-        EMAIL_PASSWORD:
-          ${{ secrets.EMAIL_PASSWORD }}
+
+
+      - name: Spuštění monitoringu
+        run: |
+
+          python main.py
+
+
+        env:
+
+
+          EMAIL_USER:
+            ${{ secrets.EMAIL_USER }}
+
+
+          EMAIL_PASSWORD:
+            ${{ secrets.EMAIL_PASSWORD }}
