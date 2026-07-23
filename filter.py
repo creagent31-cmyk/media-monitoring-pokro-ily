@@ -6,7 +6,7 @@ from config import (
 
 
 def _clean_str(val) -> str:
-    """Pomocná funkce: Převede hodnotu na řetězec bez ohledu na to, zda jde o dict nebo None."""
+    """Pomocná funkce: Převede hodnotu na čistý řetězec bez ohledu na to, zda jde o dict, None nebo str."""
     if not val:
         return ""
     if isinstance(val, dict):
@@ -25,8 +25,10 @@ def is_relevant(article):
     """
     title = _clean_str(article.get("title", ""))
     source = _clean_str(article.get("source", ""))
+    summary = _clean_str(article.get("summary") or article.get("description") or "")
 
-    text = f"{title} {source}".lower()
+    # Prohledáváme název, zdroj i perex (summary) článku
+    text = f"{title} {source} {summary}".lower()
 
     for project in PROJECTS:
         if project.lower() in text:
@@ -43,7 +45,9 @@ def analyze_sentiment(article):
     """
     Jednoduchá analýza nálady článku
     """
-    text = _clean_str(article.get("title", "")).lower()
+    title = _clean_str(article.get("title", ""))
+    summary = _clean_str(article.get("summary") or article.get("description") or "")
+    text = f"{title} {summary}".lower()
 
     positive = 0
     negative = 0
