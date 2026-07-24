@@ -1,6 +1,7 @@
-openai
 requests
 beautifulsoup4
 feedparser
 python-dotenv
 jinja2
+trafilatura
+lxml
