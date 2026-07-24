@@ -1,90 +1,327 @@
+import logging
 import urllib.parse
+
 import feedparser
 import requests
+import trafilatura
 from bs4 import BeautifulSoup
 
 from config import PROJECTS
 
+
+# ==========================================================
+# LOGGING
+# ==========================================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
+
+
+# ==========================================================
+# HTTP SESSION
+# ==========================================================
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/126.0 Safari/537.36"
+    )
+}
+
+session = requests.Session()
+session.headers.update(HEADERS)
+
+
+# ==========================================================
+# RSS FEEDY
+# ==========================================================
+
 DIRECT_FEEDS = [
-    {"source_name": "CzechCrunch", "url": "https://cc.cz/feed/"}
+
+    {
+        "source_name": "CzechCrunch",
+        "url": "https://cc.cz/feed/"
+    },
+
+    # sem můžeš jednoduše přidávat další
+
 ]
 
 
+# ==========================================================
+# STAŽENÍ CELÉHO ČLÁNKU
+# ==========================================================
+
 def _get_full_article_text(url: str) -> str:
-    """Stáhne HTML stránku odkazu a vybere z ní kompletní text obsahu."""
+
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        resp = requests.get(url, headers=headers, timeout=6)
-        if resp.status_code == 200:
-            soup = BeautifulSoup(resp.text, "html.parser")
-            for element in soup(["script", "style", "nav", "footer", "header", "aside"]):
-                element.decompose()
-            return soup.get_text(separator=" ")
+
+        downloaded = trafilatura.fetch_url(url)
+
+        if downloaded:
+
+            text = trafilatura.extract(
+                downloaded,
+                include_comments=False,
+                include_tables=False
+            )
+
+            if text and len(text) > 300:
+                return text
+
     except Exception:
         pass
-    return ""
 
+    # fallback přes BeautifulSoup
+
+    try:
+
+        response = session.get(url, timeout=5)
+
+        if response.status_code != 200:
+            return ""
+
+        soup = BeautifulSoup(
+            response.text,
+            "html.parser"
+        )
+
+        for tag in soup(
+            [
+                "script",
+                "style",
+                "header",
+                "footer",
+                "nav",
+                "aside",
+                "form"
+            ]
+        ):
+            tag.decompose()
+
+        text = soup.get_text(" ")
+
+        if len(text) < 300:
+            return ""
+
+        return text
+
+    except Exception:
+
+        return ""
+
+
+# ==========================================================
+# GOOGLE NEWS
+# ==========================================================
+
+def _google_news():
+
+    articles = []
+
+    for project in PROJECTS:
+
+        query = urllib.parse.quote(
+            f'"{project}" when:14d'
+        )
+
+        url = (
+            "https://news.google.com/rss/search?"
+            f"q={query}"
+            "&hl=cs"
+            "&ceid=CZ:cs"
+        )
+
+        try:
+
+            response = session.get(
+                url,
+                timeout=8
+            )
+
+            feed = feedparser.parse(
+                response.content
+            )
+
+            for item in feed.entries:
+
+                source = "Google News"
+
+                if hasattr(item, "source"):
+
+                    if isinstance(item.source, dict):
+
+                        source = item.source.get(
+                            "title",
+                            "Google News"
+                        )
+
+                articles.append({
+
+                    "title":
+                        item.get("title", ""),
+
+                    "link":
+                        item.get("link", ""),
+
+                    "summary":
+                        item.get(
+                            "summary",
+                            ""
+                        ),
+
+                    "source":
+                        source,
+
+                    "date":
+                        item.get(
+                            "published",
+                            ""
+                        )
+
+                })
+
+        except Exception as e:
+
+            logging.warning(
+                f"Google News chyba ({project}): {e}"
+            )
+
+    return articles
+
+
+# ==========================================================
+# RSS FEEDY
+# ==========================================================
+
+def _rss_feeds():
+
+    articles = []
+
+    for feed_info in DIRECT_FEEDS:
+
+        try:
+
+            response = session.get(
+                feed_info["url"],
+                timeout=8
+            )
+
+            feed = feedparser.parse(
+                response.content
+            )
+
+            for item in feed.entries:
+
+                title = item.get(
+                    "title",
+                    ""
+                )
+
+                summary = item.get(
+                    "summary",
+                    ""
+                )
+
+                link = item.get(
+                    "link",
+                    ""
+                )
+
+                full_text = _get_full_article_text(
+                    link
+                )
+
+                content = (
+                    summary
+                    + "\n\n"
+                    + full_text
+                )
+
+                articles.append({
+
+                    "title":
+                        title,
+
+                    "link":
+                        link,
+
+                    "summary":
+                        content,
+
+                    "source":
+                        feed_info["source_name"],
+
+                    "date":
+                        item.get(
+                            "published",
+                            ""
+                        )
+
+                })
+
+        except Exception as e:
+
+            logging.warning(
+                f"RSS chyba ({feed_info['source_name']}): {e}"
+            )
+
+    return articles
+
+
+# ==========================================================
+# DEDUPLIKACE
+# ==========================================================
+
+def _deduplicate(articles):
+
+    unique = {}
+
+    for article in articles:
+
+        key = article["link"].strip().lower()
+
+        if key:
+
+            unique[key] = article
+
+    return list(
+        unique.values()
+    )
+
+
+# ==========================================================
+# MAIN
+# ==========================================================
 
 def get_news():
-    articles = []
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
 
-    # 1. GOOGLE NEWS (Prohledávání 14 dní zpětně)
-    for project in PROJECTS:
-        # Přidání 'when:14d' vyhledá články z posledních 14 dnů
-        query_text = f"{project} when:14d"
-        q = urllib.parse.quote(query_text)
-        url = f"https://news.google.com/rss/search?q={q}&hl=cs&ceid=CZ:cs"
+    logging.info(
+        "Načítám Google News..."
+    )
 
-        try:
-            response = requests.get(url, headers=headers, timeout=10)
-            feed = feedparser.parse(response.content)
+    google_articles = _google_news()
 
-            for item in feed.entries:
-                summary_raw = item.get("summary") or item.get("description", "")
-                
-                source_val = "Google News"
-                if hasattr(item, "source"):
-                    if isinstance(item.source, dict):
-                        source_val = item.source.get("title", "Google News")
-                    else:
-                        source_val = getattr(item.source, "title", str(item.source))
+    logging.info(
+        "Načítám RSS..."
+    )
 
-                articles.append({
-                    "title": item.get("title", ""),
-                    "link": item.get("link", ""),
-                    "summary": summary_raw,
-                    "source": source_val,
-                    "date": item.get("published", "")
-                })
-        except Exception as e:
-            print(f"Chyba u Google News ({project}): {e}")
+    rss_articles = _rss_feeds()
 
-    # 2. PŘÍMÉ RSS FEEDY (S načtením celého textu z webu)
-    for direct_feed in DIRECT_FEEDS:
-        try:
-            response = requests.get(direct_feed["url"], headers=headers, timeout=10)
-            feed = feedparser.parse(response.content)
+    articles = (
+        google_articles
+        + rss_articles
+    )
 
-            for item in feed.entries:
-                link = item.get("link", "")
-                summary_raw = item.get("summary") or item.get("description", "")
-                
-                full_text = _get_full_article_text(link)
-                combined_content = f"{summary_raw} {full_text}"
+    articles = _deduplicate(
+        articles
+    )
 
-                articles.append({
-                    "title": item.get("title", ""),
-                    "link": link,
-                    "summary": combined_content,
-                    "source": direct_feed["source_name"],
-                    "date": item.get("published", "")
-                })
-        except Exception as e:
-            print(f"Chyba u feedu {direct_feed['source_name']}: {e}")
+    logging.info(
+        f"Nalezeno {len(articles)} unikátních článků."
+    )
 
     return articles
